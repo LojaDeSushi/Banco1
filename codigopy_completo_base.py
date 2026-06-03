@@ -11,14 +11,14 @@ config = { #define as configurações de conexões
     'raise_on_warnings': True
 }
 
-def conecta(config): #conecta ao banco 
+def Conecta(config): #conecta ao banco 
     try: 
         return sql.connect(**config) 
     except Error:
         print(f"Deu erro: {Error}")
         return None
 
-conex = conecta(config)
+conex = Conecta(config)
 
 #-------------------------ações-------------------------------
 def BuscaAtende(login): 
