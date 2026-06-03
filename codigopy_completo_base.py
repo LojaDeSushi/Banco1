@@ -20,10 +20,78 @@ def conecta(config): #conecta ao banco
 
 conex = conecta(config)
 
-#-------------------------------------base---------------------------------------
+#-------------------------ações-------------------------------
+def BuscaAtende(login): 
+    conex = Conecta(config)
+    cursor = conex.cursor()
+    verf = ("select id_atendente from atendente where login_atend = %s ")
+    cursor.execute(verf, (login,))
+    resul = cursor.fetchone()
+    cursor.close()
+    conex.close()
+    if resul is None:
+        return None
+    return resul[0]
+
+def BuscaAdm(login): 
+    conex = Conecta(config)
+    cursor = conex.cursor()
+    verf = ("select id_adim from adim where login_adm = %s")
+    cursor.execute(verf, (login,))
+    resul = cursor.fetchone()
+    cursor.close()
+    conex.close()
+    if resul is None:
+        return None
+    return resul[0]
+
+def NovoAtendente(login, senha, nome): #usado para criar o web de um cliente já existente
+    conex = Conecta(config)
+    try:
+        cursor = conex.cursor()
+        resultado = BuscaAtende(login)
+        if resultado is not None:
+            return "atendente ja cadastrado" 
+
+        cod = "insert into atendente (login_atend, senha_atend, nome_atendente) values (%s, %s, %s);" 
+        Vddsenha = crypto.SenHash(senha)
+        cursor.execute(cod, (login, Vddsenha, nome,))
+        
+        conex.commit()
+        return "Atendente cadastrado"
+        
+    except Error as e:
+        conex.rollback()
+        return f"ihh erro {e}"
+    finally:
+        cursor.close()
+        conex.close()
+
+def NovoAdm(login, senha): #usado para criar o web de um cliente já existente
+    conex = Conecta(config)
+    try:
+        cursor = conex.cursor()
+        resultado = BuscaAdm(login)
+        if resultado is not None:
+            return "adminstrador ja cadastrado" 
+    
+        cod = "insert into adim (login_adm, senha_adm) values (%s, %s);" 
+        Vddsenha = crypto.SenHash(senha)
+        cursor.execute(cod, (login, Vddsenha,))
+        
+        conex.commit()
+        return "Administrador cadastrado"
+        
+    except Error as e:
+        conex.rollback()
+        return f"ihh erro {e}"
+    finally:
+        cursor.close()
+        conex.close()
+
 #Se já existe um cliente com o nome e telefone:
 def BuscaId(nome, tel): #usa o nome e telefone para achar o id_cliente
-    conex = conecta(config)
+    conex = Conecta(config)
     cursor = conex.cursor()
     verf = ("select id_cliente from cliente where nome_cliente = %s and tel_cliente = %s ")
     cursor.execute(verf, (nome, tel))
@@ -40,7 +108,7 @@ def BuscaConta(nome, tel):
     if resultado is None:
         print("cliente sem cadastro\n")
         return
-    conex = conecta(config)
+    conex = Conecta(config)
     cursor = conex.cursor()
 
     verf = "select id_conta from conta where id_conta = %s"
@@ -56,7 +124,7 @@ def BuscaConta(nome, tel):
 #Usamos Nome, data, telefone, rua, cidade e bairro
 #id auto_incrementado
 def NovoCliente(nome, nasc, tel, rua, cidade, bairro, estado): #cria um cliente novo
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         resultado = BuscaId(nome, tel)
@@ -67,14 +135,20 @@ def NovoCliente(nome, nasc, tel, rua, cidade, bairro, estado): #cria um cliente 
             id_cliente = cursor.lastrowid
         else:
             id_cliente = resultado
+            cod = "select id_conta from conta where id_conta = %s"
+            cursor.execute(cod, (id_cliente,))
+            verf = cursor.fetchone()
+            if verf is not None:
+                return
 
         cont = "insert into conta (id_conta) values (%s)"
         cursor.execute(cont, (id_cliente,))
         conex.commit()
-        print(f"Cliente {nome} seja bem vindo!\n")
-    except Error as erro:
+        return f"Cliente {nome} seja bem vindo!"
+    
+    except Error as e:
         conex.rollback()
-        print(f"Ihh erro {erro}")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -83,13 +157,12 @@ def NovoCliente(nome, nasc, tel, rua, cidade, bairro, estado): #cria um cliente 
 #Usamos nome e telefone para verificar a existência 
 #login e senha criados
 def NovoWeb(login, senha, nome, tel): #usado para criar o web de um cliente já existente
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         resultado = BuscaId(nome, tel)
         if resultado is None:
-            print("cliente sem cadastro\n") #verifica se tem cliente
-            return
+            return "cliente sem cadastro" #verifica se tem cliente
         
         Id_conta = BuscaConta(nome, tel) #pega o id_conta
 
@@ -115,9 +188,9 @@ def NovoWeb(login, senha, nome, tel): #usado para criar o web de um cliente já 
                 cursor.execute(Ncar, (Id_conta,))
         conex.commit()
         
-    except Error as erro:
+    except Error as e:
         conex.rollback()
-        print(f"Ihh deu erro: {erro}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -125,7 +198,7 @@ def NovoWeb(login, senha, nome, tel): #usado para criar o web de um cliente já 
 #Inserir produto
 #usa nome, descrição, valor e quantidades 
 def BuscaProd(nome):
-    conex = conecta(config)
+    conex = Conecta(config)
     cursor = conex.cursor()
     verf = ("select id_produto from produto where nome_produto = %s")
     cursor.execute(verf, (nome,))
@@ -137,21 +210,21 @@ def BuscaProd(nome):
     return resul[0]
 
 def NovoProdu(nome, descricao, valor, quanti):
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         resultado = BuscaProd(nome)
         if resultado is not None:
-            print(f"Produto cadastrado com id de {resultado}\n")
-            atua = "update produto set quanti_pro = quanti_pro + %s where id_produto = %s"
-            cursor.execute(atua, (quanti, resultado))
+            return f"Produto cadastrado com id de {resultado}"
         else:
             cod = "insert into produto (nome_produto, descricao_pro, valor, quanti_pro) values (%s, %s, %s, %s)"
             cursor.execute(cod, (nome, descricao, valor, quanti,))
-            print("produto cadastrado!\n")
+        
         conex.commit()
+        return f"produto {nome} cadastrado com valor {valor} e {quanti} itens!"
+    
     except Error as e:
-        print(f"ihh erro {e}")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -159,7 +232,7 @@ def NovoProdu(nome, descricao, valor, quanti):
 #Item no carrinho
 def AddItemCarr(nomeCli, tel, NomePro, quant):
     Id_conta = BuscaConta(nomeCli, tel)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         car = "select id_carrinho from carrinho where id_conta = %s"
@@ -169,8 +242,7 @@ def AddItemCarr(nomeCli, tel, NomePro, quant):
 
         Id_prod = BuscaProd(NomePro) 
         if Id_prod is None:
-            print("Produto nao encontrado\n")
-            return
+            return "Produto nao encontrado"
 
         tam = "select quanti_pro from produto where id_produto = %s"
         cursor.execute(tam, (Id_prod,))
@@ -202,9 +274,10 @@ def AddItemCarr(nomeCli, tel, NomePro, quant):
                 cursor.execute(mais, (tam, Id_prod, Id_car,))
                 print(f"Nao temos {tem} produtos colocaremos o max possível, agora tem {tam} produtos {NomePro}\n")
         conex.commit()
+
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -212,7 +285,7 @@ def AddItemCarr(nomeCli, tel, NomePro, quant):
 #visualizar carrinho
 def visuCar(nomeCli, tel):
     Id_conta = BuscaConta(nomeCli, tel)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         car = "select id_carrinho from carrinho where id_conta = %s"
@@ -221,14 +294,13 @@ def visuCar(nomeCli, tel):
         Id_car = result[0] if result is not None else None
 
         if Id_car is None:
-            print("Nao possui carrinho\n")
-            return
+            return "Nao possui carrinho"
         
         carr = "select id_produto, quanti_item from itemcarrinho where id_carrinho = %s"
         cursor.execute(carr,(Id_car,))
         result = cursor.fetchall()
     
-        print("Seu carrinho tem: ")
+        #print("Seu carrinho tem: ")
         for itens in result:
             teste = "select nome_produto from produto where id_produto = %s"
             cursor.execute(teste, (itens[0],))
@@ -237,7 +309,7 @@ def visuCar(nomeCli, tel):
 
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -245,7 +317,7 @@ def visuCar(nomeCli, tel):
 #transferir do carrinho para o pedido
 def Pedido(nome, tel):
     Id_conta = BuscaConta(nome, tel)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         car = "select id_carrinho from carrinho where id_conta = %s"
@@ -291,7 +363,7 @@ def Pedido(nome, tel):
         conex.commit()
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -301,39 +373,33 @@ def Pedido(nome, tel):
 #visualizar carrinho
 def visuPedi(nomeCli, tel):
     Id_conta = BuscaConta(nomeCli, tel)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         car = "select id_pedido, total_pedido, status, num_pedido from pedido where id_conta = %s"
         cursor.execute(car, (Id_conta,))
         result = cursor.fetchall()
         if not result:
-            print("Nenhum pedido\n")
-            return
+            return "Nenhum pedido"
+        
         for pedido in result:
             ped = "select id_produto, quanti_item from itempedido where id_pedido = %s"
             cursor.execute(ped,(pedido[0],))
             resultado = cursor.fetchall()
 
-            print(f"Seu pedido n° {pedido[3]} tem: ")
             for itens in resultado:
                 teste = "select nome_produto from produto where id_produto = %s"
                 cursor.execute(teste, (itens[0],))
                 produt = cursor.fetchone()[0]
-                print(f"{itens[1]} {produt}")
-            print(f"Total: {pedido[1]} dinheiros")
-            print(f"O status do seu pedido eh {pedido[2]}")
 
             pag = "select metodo_pag, valor_pag from pagamento where id_pedido = %s"
             cursor.execute(pag, (pedido[0],))
-            print("O pedido foi pago: ")
             tipos = cursor.fetchall()
-            for i in tipos:
-                print(f"{i[0]} -> {i[1]} | ")
             
+        return result
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -341,18 +407,16 @@ def visuPedi(nomeCli, tel):
 #cancelar pedido admim e cliente
 def Cancela(nome, tel, numP):
     id_conta = BuscaConta(nome, tel)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         ped = "select id_pedido, status from pedido where id_conta = %s and num_pedido = %s"
         cursor.execute(ped, (id_conta, numP,))
         result = cursor.fetchone()
         if not result:
-            print("pedido nao existe\n")
-            return
+            return "pedido nao existe"
         elif result[1] == 'Entregue' or result[1] == 'Cancelado':
-            print("Pedido entregue ou cancelado\n")
-            return
+            return "Pedido entregue ou cancelado"
 
         ped = "select id_produto, quanti_item from itempedido where id_pedido = %s"
         cursor.execute(ped,(result[0],))
@@ -365,12 +429,12 @@ def Cancela(nome, tel, numP):
             
         up = "update pedido set status = 'Cancelado' where id_pedido = %s"
         cursor.execute(up, (result[0],))
-        print(f"Pedido de numero {numP} foi cancelado\n")
         
         conex.commit()
+        return f"Pedido de numero {numP} foi cancelado"
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -384,23 +448,20 @@ def MudaStatus(nome, tel, numP):
     'Pago': 'Em transito',
     'Em transito': 'Entregue'
     }
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         ped = "select id_pedido, status from pedido where id_conta = %s and num_pedido = %s"
         cursor.execute(ped, (id_conta, numP,))
         result = cursor.fetchone()
         if not result:
-            print("pedido nao existe\n")
-            return
+            return "pedido nao existe"
         elif result[1] == 'Entregue' or result[1] == 'Cancelado':
-            print("Pedido entregue ou cancelado\n")
-            return
+            return "Pedido entregue ou cancelado"
         
         prox = ordem[result[1]]
         atua = "update pedido set status = %s where id_pedido = %s"
         cursor.execute(atua, (prox, result[0],))
-        print(f"pedido de numero {numP} foi atualizado para {prox}\n")
         if prox == 'Confirmado':
             ped = "select id_produto, quanti_item from itempedido where id_pedido = %s"
             cursor.execute(ped,(result[0],))
@@ -410,9 +471,10 @@ def MudaStatus(nome, tel, numP):
                 cursor.execute(retira, (itens[1], itens[0],))
 
         conex.commit()
+        return f"pedido de numero {numP} foi atualizado para {prox}"
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -420,14 +482,13 @@ def MudaStatus(nome, tel, numP):
 #pagamentos
 def Pagamento(nome, tel, numP):
     Id_conta = BuscaConta(nome, tel)
-    conex = conecta(config)
+    conex = Conecta(config)
     quant = int(input("Quantos pagamentos deseja fazer? 1, 2 ou 3?: "))
     pag = []
     for i in range(quant):
         tipo = input(f"O {i+1}° pagamento vai ser qual tipo?: Pix, Cartão ou Boleto?: ")
         if tipo not in ['Pix', 'Cartão', 'Boleto']:
-            print("Tipo inválido\n")
-            return
+            return "Tipo inválido"
         pag.append(tipo)
     try:
         cursor = conex.cursor()
@@ -435,27 +496,25 @@ def Pagamento(nome, tel, numP):
         cursor.execute(car, (Id_conta, numP))
         result = cursor.fetchone()
         if not result:
-            print("Nenhum pedido achado\n")
-            return
+            return "Nenhum pedido achado"
         if result[2] in ['Cancelado', 'Entregue']:
-            print("Não pode mais alterar o pagamento")
-            return
+            return "Não pode mais alterar o pagamento"
         
         diaP = datetime.datetime.now()
         
+        t = 0
         for i in range(quant):
             valorpag = int(input(f"O {i+1}° tipo de pagamento vai pagar quanto?: "))
             t += valorpag
             if t > result[1] or t < 1:
-                print("Valor inválido\n")
-                return
+                return "Valor inválido"
             pagamento = "insert into pagamento (id_pedido, metodo_pag, valor_pag, data_pag) values (%s, %s, %s, %s)"
             cursor.execute(pagamento, (result[0], pag[i], valorpag, diaP,))
 
         conex.commit()
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -463,43 +522,41 @@ def Pagamento(nome, tel, numP):
 #remover item do carrinho
 def RemoveItemCar(nome, tel, NomeP, quant):
     id_conta = BuscaConta(nome, tel)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         car = "select id_carrinho from carrinho where id_conta = %s"
         cursor.execute(car, (id_conta,))
         id_car = cursor.fetchone()
         if not id_car:
-            print("Carrinho vazio\n")
-            return
+            return "Carrinho vazio"
         id_car = id_car[0]
 
         id_prod = BuscaProd(NomeP)
         if id_prod is None:
-            print("Produto nao encontrado\n")
-            return
+            return "Produto nao encontrado"
 
         it = "select quanti_item from itemcarrinho where id_produto = %s and id_carrinho = %s"
         cursor.execute(it, (id_prod, id_car,))
         quantidade = cursor.fetchone()
         if quantidade is None:
-            print(f"Nao tem {NomeP} no carrinho\n")
-            return
+            return f"Nao tem {NomeP} no carrinho"
         quantidade = quantidade[0]
         
         if quant >= quantidade:
             remove = "delete from itemcarrinho where id_produto = %s and id_carrinho = %s"
             cursor.execute(remove, (id_prod, id_car,))
-            print(f"{NomeP} foi removido do carrinho")
+            #print(f"{NomeP} foi removido do carrinho")
         elif quant < quantidade:
             atua = "update itemcarrinho set quanti_item = quanti_item - %s where id_produto = %s and id_carrinho = %s"
             cursor.execute(atua, (quant, id_prod, id_car,))
-            print(f"{NomeP} agora tem {quantidade - quant}\n")
+            #print(f"{NomeP} agora tem {quantidade - quant}\n")
 
         conex.commit()
+        return f"{NomeP}"
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -507,7 +564,7 @@ def RemoveItemCar(nome, tel, NomeP, quant):
 #atualizar cliente
 def atualizaCliente(nome, tel, Ntel=None, Nrua=None, Ncidade=None, Nbairro=None, Nestado=None):
     id_cliente = BuscaId(nome, tel)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         campos = []
@@ -530,8 +587,7 @@ def atualizaCliente(nome, tel, Ntel=None, Nrua=None, Ncidade=None, Nbairro=None,
             valores.append(Nestado)
 
         if not campos:
-            print("Nenhuma alteração feita\n")
-            return
+            return "Nenhuma alteração feita"
 
         valores.append(id_cliente)
         atua = f"update cliente set {', '.join(campos)} where id_cliente = %s"
@@ -540,7 +596,7 @@ def atualizaCliente(nome, tel, Ntel=None, Nrua=None, Ncidade=None, Nbairro=None,
         conex.commit()
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -548,7 +604,7 @@ def atualizaCliente(nome, tel, Ntel=None, Nrua=None, Ncidade=None, Nbairro=None,
 #atualiza produto
 def atualizaProd(nomeP, Nnome=None, Ndescricao=None, Nvalor=None, Nquanti=None):
     id_produto = BuscaProd(nomeP)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         campos = []
@@ -568,17 +624,17 @@ def atualizaProd(nomeP, Nnome=None, Ndescricao=None, Nvalor=None, Nquanti=None):
             valores.append(Nquanti)
 
         if not campos:
-            print("Nenhuma alteração feita\n")
-            return
+            return "Nenhuma alteração feita"
 
         valores.append(id_produto)
         atua = f"update produto set {', '.join(campos)} where id_produto = %s"
         cursor.execute(atua, tuple(valores))
 
         conex.commit()
+        return f"Produto {nomeP} atualizado, veja no campo de visualizar produtos"
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -586,21 +642,20 @@ def atualizaProd(nomeP, Nnome=None, Ndescricao=None, Nvalor=None, Nquanti=None):
 #deletar cliente
 def mataCliente(nome, tel):
     id_cliente = BuscaId(nome, tel)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor= conex.cursor()
         if id_cliente is None:
-            print("Esse cliente nao existe\n")
-            return
+            return "Esse cliente nao existe"
         
         mata = "Delete from cliente where id_cliente = %s"
         cursor.execute(mata, (id_cliente,))
-        print(f"o cliente {nome} de id = {id_cliente} foi retirado do sistema\n")
-
+    
         conex.commit()
+        return f"o cliente {nome} de id = {id_cliente} foi retirado do sistema"
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -608,45 +663,84 @@ def mataCliente(nome, tel):
 #deleta produto
 def mataProduto(nomeP):
     id_prod = BuscaProd(nomeP)
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         if id_prod is None:
-            print("Esse produto nao existe\n")
-            return
+            return "Esse produto nao existe"
         
         deleta = "Delete from produto where id_produto = %s"
         cursor.execute(deleta, (id_prod,))
-        print(f"O produto {nomeP} e id = {id_prod} foi retirado do sistema\n")
-
-
         conex.commit()
+        return f"O produto {nomeP} e id = {id_prod} foi retirado do sistema"
+
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
 
-#consultas ao banco de dados
+#---------------------consultas ao banco de dados-------------------------------
 #quantidade de usuários, id nome e cidade
 def Usuarios():
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         quant = "select count(*) from cliente"
         cursor.execute(quant)
         quantidade = cursor.fetchone()[0]
-        print(f"Seu sistema tem {quantidade} usuarios:")
+        #print(f"Seu sistema tem {quantidade} usuarios:")
         usu = "select * from cliente"
         cursor.execute(usu)
         result = cursor.fetchall()
-        for i in result:
-            print(f"Id = {i[0]} | nome = {i[1]} | cidade = {i[5]}")
+        return result
 
     except Error as e:
         conex.rollback()
-        print(f"ihh erro {e}\n")
+        return f"ihh erro {e}"
+    finally:
+        cursor.close()
+        conex.close()
+
+#quantidade de produtos 
+def Produtos():
+    conex = Conecta(config)
+    try:
+        cursor = conex.cursor()
+        quant = "select count(*) from produto"
+        cursor.execute(quant)
+        quantidade = cursor.fetchone()[0]
+        #print(f"Seu sistema tem {quantidade} produtos:")
+        usu = "select * from produto"
+        cursor.execute(usu)
+        result = cursor.fetchall()
+        return result
+
+    except Error as e:
+        conex.rollback()
+        return f"ihh erro {e}"
+    finally:
+        cursor.close()
+        conex.close()
+
+#quantidade de pedidos 
+def Pedidos():
+    conex = Conecta(config)
+    try:
+        cursor = conex.cursor()
+        quant = "select count(*) from pedido"
+        cursor.execute(quant)
+        quantidade = cursor.fetchone()[0]
+        #print(f"Seu sistema tem {quantidade} pedidos:")
+        usu = "select * from pedido"
+        cursor.execute(usu)
+        result = cursor.fetchall()
+        return result
+
+    except Error as e:
+        conex.rollback()
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -654,26 +748,24 @@ def Usuarios():
 #pagamento mais usado 
 #usei procedure
 def PagamentoMais():
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         cursor.execute("call MetodoMais()")
         dados = cursor.fetchall()
         if not dados:
-            print("Nenhum pagamento feito\n")
-            return
-        for i in dados:
-            print(f"Metodo mais usado: {i[0]} | quantidade: {i[1]}")
+            return "Nenhum pagamento feito"
+        return dados
 
     except Error as e:
-        print(f"ihh erro {e}")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
 
 #Filtro de usuários por bairro, cidade, estado
 def FiltraLocal(Bairro=None, Cidade=None, Estado=None):
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         campos = []
@@ -689,20 +781,20 @@ def FiltraLocal(Bairro=None, Cidade=None, Estado=None):
             campos.append("estado = %s")
             valores.append(Estado)
         if not campos:
-            print("Nenhum filtro aplicado\n")
+            #print("Nenhum filtro aplicado\n")
             Usuarios()
             return
         
         usu = f"select * from cliente where {' and '.join(campos)}"
         cursor.execute(usu, tuple(valores))
         result = cursor.fetchall()
-        print(f"Filtrado por {valores}")
-        for i in result:
-            print(f"Id = {i[0]} | nome = {i[1]} ")
+        #print(f"Filtrado por {valores}")
+        return result
+            #print(f"Id = {i[0]} | nome = {i[1]} ")
 
 
     except Error as e:
-        print(f"ihh erro {e}")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -710,19 +802,17 @@ def FiltraLocal(Bairro=None, Cidade=None, Estado=None):
 #Média anual de venda (por valor)
 #procedure
 def MediAnual():
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         cursor.execute("call MediaPedidosAno()")
         dados = cursor.fetchall()
         if not dados:
-            print("Nao teve vendas\n")
-            return
-        for i in dados:
-            print(f"Ano: {i[0]} | Media de valor: {i[1]}")
-
+            return None
+    
+        return dados
     except Error as e:
-        print(f"ihh erro {e}")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -730,19 +820,17 @@ def MediAnual():
 #Mes e ano com maior num de vendas
 #procedure
 def M_A_Vendas():
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         cursor.execute("call MaiorVendasM_A()")
         dados = cursor.fetchall()
         if not dados:
-            print("Nao teve vendas\n")
-            return
-        for i in dados:
-            print(f"Ano: {i[0]} | Mes: {i[1]} | Pedidos feitos: {i[2]}")
+            return None
+        return dados
 
     except Error as e:
-        print(f"ihh erro {e}")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -750,22 +838,22 @@ def M_A_Vendas():
 #clientes com compras todos os meses de um ano x
 #procedure
 def ClienteAnual(ano):
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         cursor.execute("call ClienteAnual(%s)", (ano,))
         dados = cursor.fetchall()
         if not dados:
-            print(f"Nao houve clientes com compras todos os meses no ano {ano}")
-            return
+            return None
+        
         for i in dados:
             cli = "select nome_cliente from cliente where id_cliente = %s"
             cursor.execute(cli, (i[0],))
             nome = cursor.fetchone()
-            print(f"Cliente: {nome[0]} | id: {i[0]} ")
+            return nome
 
     except Error as e:
-        print(f"ihh erro {e}")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -773,21 +861,17 @@ def ClienteAnual(ano):
 #Produto mais vendido CONSULTA EXTRA
 #procedure
 def ProdutoMais():
-    conex = conecta(config)
+    conex = Conecta(config)
     try:
         cursor = conex.cursor()
         cursor.execute("call ProdutoMais()")
         dados = cursor.fetchall()
         if not dados:
-            print("Nao houve venda\n")
-            return
-        
-        j = 1
-        for i in dados:
-            print(f" {j}° Produto: {i[0]} | Quantidade: {i[1]} ")
-            j += 1
+            return None
+        print(f"{dados[1]}")
+        return dados
     except Error as e:
-        print(f"ihh erro {e}")
+        return f"ihh erro {e}"
     finally:
         cursor.close()
         conex.close()
@@ -808,7 +892,7 @@ def ProdutoMais():
 
 nome = "Giulia"
 #nasc = input("Qual seu aniversario, AAAA-MM-DD :")
-tel = 989933867
+tel = 888888888
 #Cidade = "petropolis"
 #Bairro  = "Centro"
 #rua = input("Rua: ")
